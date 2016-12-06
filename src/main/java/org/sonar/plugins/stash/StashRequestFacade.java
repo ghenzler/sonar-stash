@@ -268,7 +268,8 @@ public class StashRequestFacade implements BatchComponent {
         LOGGER.debug("Found PR for branch {}: {}", config.getPullRequestBranch(), pullRequest);
         return pullRequest.getId();
       } catch (StashClientException e) {
-        throw new StashConfigurationException(MessageFormat.format(EXCEPTION_STASH_CONF, StashPlugin.STASH_PULL_REQUEST_ID));
+        LOGGER.warn("Could not resolve branch "+config.getPullRequestBranch() + " to PID: "+e, e);
+        throw new StashConfigurationException(MessageFormat.format(EXCEPTION_STASH_CONF, StashPlugin.STASH_PULL_REQUEST_ID), e);
       }
     }
     

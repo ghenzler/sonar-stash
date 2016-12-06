@@ -1,5 +1,6 @@
 package org.sonar.plugins.stash;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
@@ -60,9 +61,10 @@ public class StashIssueReportingPostJob implements PostJob {
           int stashTimeout = config.getStashTimeout();
 
           StashCredentials stashCredentials = stashRequestFacade.getCredentials();
+          LOGGER.info("Using Stash: "+ stashURL + " Creds "+stashCredentials.getLogin() + " / "+(stashCredentials.getPassword()!=null?"l="+stashCredentials.getPassword().length():"null"));
 
           try (StashClient stashClient = new StashClient(stashURL, stashCredentials, stashTimeout, config.getSonarQubeVersion())) {
-
+              
               StashUser stashUser = stashRequestFacade.getSonarQubeReviewer(stashCredentials.getLogin(), stashClient);
 
               if (stashUser == null) {
@@ -121,7 +123,8 @@ public class StashIssueReportingPostJob implements PostJob {
       } catch (GitBranchNotFoundOrNotUniqueException e) {
           LOGGER.info("No unique PR: "+ e.getMessage());
       } catch (StashConfigurationException e) {
-          LOGGER.error("Unable to push SonarQube report to Stash: {}", e.getMessage());
+        
+          LOGGER.error("Unable to push SonarQube report to Stash: {}", e.getMessage(), e);
           LOGGER.debug("Exception stack trace", e);
 
       } catch (StashMissingElementException e) {
@@ -149,19 +152,31 @@ public class StashIssueReportingPostJob implements PostJob {
       int failForIssueSeverityAsInt = Severity.ALL.indexOf(failForIssuesWithSeverity.trim().toUpperCase());
 
       if (failForIssueSeverityAsInt > -1) {
-        int issueCountToFailFor = 0;
 
+
+        List<SonarQubeIssue> issuesToFailFor = new ArrayList<SonarQubeIssue>();
         for (SonarQubeIssue issue : issues) {
           int issueSeverityAsInt = Severity.ALL.indexOf(String.valueOf(issue.getSeverity()).trim().toUpperCase());
           if (issueSeverityAsInt >= failForIssueSeverityAsInt) {
             LOGGER.debug("Breaking build because of issue {} that has a severity equal or higher than '{}'",
                 issue, failForIssuesWithSeverity);
-            issueCountToFailFor++;
+
+            issuesToFailFor.add(issue);
           }
         }
 
-        if (issueCountToFailFor > 0) {
-          String msg = "Project " + project.getName() + " has " + issueCountToFailFor
+        if (!issuesToFailFor.isEmpty()) {
+          
+          StringBuffer issuesSummaryBuf = new StringBuffer();
+          issuesSummaryBuf.append("\n\nFound SonarQube Issues to fail for:\n\n");
+          for(SonarQubeIssue issue : issuesToFailFor) {
+            issuesSummaryBuf.append(issue.getPath() + " (Line "+issue.getLine() +"):\n");
+            issuesSummaryBuf.append(issue.getRule() + " ("+issue.getSeverity()+") "+ issue.getMessage() + "\n\n");
+            
+          }
+          LOGGER.warn(issuesSummaryBuf.toString());
+          
+          String msg = "Project " + project.getName() + " has " + issuesToFailFor.size()
               + " issues that are of severity equal or higher than " + failForIssuesWithSeverity;
           LOGGER.error(msg);
           throw new StashFailBuildException(msg);

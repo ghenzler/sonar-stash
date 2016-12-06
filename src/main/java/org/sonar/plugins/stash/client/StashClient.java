@@ -189,6 +189,8 @@ public class StashClient implements AutoCloseable {
       throws StashClientException {
     String request = MessageFormat.format(REPO_API + "pull-requests?at=refs/heads/{3}&direction=OUTGOING", baseUrl, project, repository, branchName);
     
+    LOGGER.info("Querying for pull request ID in Stash for branch name {}: {}", branchName, request);
+    
     JSONObject response = get(request, MessageFormat.format(PULL_REQUEST_GET_FOR_BRANCH_ERROR_MESSAGE, repository, branchName));
     
     Long size = (Long) response.get("size");
@@ -198,6 +200,7 @@ public class StashClient implements AutoCloseable {
       // the expected case
       JSONObject prJsonObject = (JSONObject) ((JSONArray) response.get("values")).get(0);
       Long prId = (Long) prJsonObject.get("id");
+      LOGGER.info("Found PR with ID {}", prId);
       return StashCollector.extractPullRequest(project, repository, String.valueOf(prId), prJsonObject);
     } else {
       throw new GitBranchNotFoundOrNotUniqueException("Found "+size+" PRs for branch "+branchName + " in repo "+repository);
